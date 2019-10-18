@@ -1,0 +1,8 @@
+.ipynb_checkpoints/
+.idea/
+.vscode/
+venv/
+dask_space/
+dask/
+distributed/
+__pycache__/

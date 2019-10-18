@@ -1,0 +1,11 @@
+jupyter
+jupyterlab
+matplotlib
+numpy
+pandas
+tornado
+toolz
+qiskit
+IBMQuantumExperience
+cython
+pylatexenc
