@@ -194,7 +194,8 @@ class FinishedExperiment:
             'classification': self.get_classification() if self.status is JobStatus.DONE else None,
             'noise_model': self.noise_model.as_dict() if self.noise_model is not None else None,
             'parameters': self.parameters,
-            'external_id': self.external_id
+            'external_id': self.external_id,
+            'theta': self.theta
         }
 
     def analyze(self):
@@ -249,7 +250,7 @@ class FinishedExperiment:
             results=[ExperimentResult.from_dict(d) for d in dict.get('results', [])],
             noise_model=NoiseModel.from_dict(dict['noise_model']) if 'noise_model' in dict and dict['noise_model'] is not None else None,
             external_id=dict.get('external_id', None),
-            theta=dict.get('theta', []),
+            theta=dict.get('theta', np.arange(0, 2*np.pi, 0.1)),  # fixing a bug here.... argh!
             parameters=dict.get('parameters', [])
         )
 
@@ -426,7 +427,8 @@ def create_direction_only_pass_manager(device):
     pm = PassManager()
     pm.append(Unroller(basis=basis))
     # noinspection PyTypeChecker
-    pm.append(CXDirection(coupling_map=cp))
+    if cp.size() > 0:
+        pm.append(CXDirection(coupling_map=cp))
     pm.append(Optimize1qGates())
     return pm
 
