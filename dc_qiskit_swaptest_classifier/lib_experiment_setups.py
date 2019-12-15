@@ -47,19 +47,44 @@ module_path = os.path.dirname(__file__)
 client = Client(address='localhost:8786')  # type: Client
 
 
+class BackendEnum(Enum):
+    SIMULATOR = 0
+    IBMQX2 = 1
+    IBMQX4 = 2
+    IBMQ_OURENSE = 3
+    IBMQ_VIGO = 4
+
+
 def update_files():
     client.upload_file("{}/lib_circuits.py".format(module_path))
     client.upload_file("{}/lib_experimental_utils.py".format(module_path))
     client.upload_file("{}/lib_experiment_setups.py".format(module_path))
 
 
-def create_hadamard_simulation(instead_ibmqx4_use_ibmqx2=False, instead_general_weights_use_hadamard=False, use_barriers=False, no_noise=False):
+def create_hadamard_simulation(backend_enum=BackendEnum.IBMQX4, instead_general_weights_use_hadamard=False, use_barriers=False, no_noise=False, use_dask=True):
     update_files()
 
     id = "sim_hadamard_{}".format(datetime.datetime.now().strftime("%Y%m%dT%H%M%SZ"))
 
-    backend = ibmqx2 if instead_ibmqx4_use_ibmqx2 else ibmqx4
-    circuit = lib.create_hadamard_circuit
+    circuit = lib.create_hadamard_circuit  # type: Callable[[List[float], float, Optional[dict]], QuantumCircuit]
+    backend = ibmqx4  # type: Callable[[], BaseBackend]
+    if backend_enum == BackendEnum.IBMQX2:
+        circuit = lib.create_hadamard_circuit
+        backend = ibmqx2
+    elif backend_enum == BackendEnum.IBMQX4:
+        circuit = lib.create_hadamard_circuit
+        backend = ibmqx4
+    elif backend_enum == BackendEnum.IBMQ_OURENSE:
+        circuit = lib.create_hadamard_circuit_ourense
+        backend = ibmq_ourense
+    elif backend_enum == BackendEnum.IBMQ_VIGO:
+        circuit = lib.create_hadamard_circuit_ourense
+        backend = ibmq_vigo
+    elif backend_enum == BackendEnum.SIMULATOR:
+        circuit = lib.create_hadamard_circuit_ourense
+        backend = qasm_simulator
+    else:
+        raise ValueError("Given backend not supported.")
 
     def calculation():
         setup_logging()
@@ -220,13 +245,6 @@ def create_regular_simulation(instead_ibmqx4_use_ibmqx2=False, instead_general_w
     # noinspection PyTypeChecker
     client.publish_dataset(future, name=id)
     return id
-
-
-class BackendEnum(Enum):
-    IBMQX2 = 1
-    IBMQX4 = 2
-    IBMQ_OURENSE = 3
-    IBMQ_VIGO = 4
 
 
 def create_regular_experiment_and_then_simulation(backend_enum=BackendEnum.IBMQX4,
