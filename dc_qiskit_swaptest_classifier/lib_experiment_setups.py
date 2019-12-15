@@ -110,7 +110,7 @@ def create_hadamard_simulation(backend_enum=BackendEnum.IBMQX4, instead_general_
             pm=pass_manager,
             device=qasm_simulator(),
             qobj_id=id,
-            use_dask=True)
+            use_dask=use_dask)
 
         sim = simulation(id, qasm_simulator(), qobj=qobj, noise_model=noise_model)
         sim.set_theta(theta)
@@ -119,16 +119,20 @@ def create_hadamard_simulation(backend_enum=BackendEnum.IBMQX4, instead_general_
         sim.parameters['circuit_factory'] = circuit.__name__
         sim.parameters['use_generic_weights_circuit'] = not instead_general_weights_use_hadamard
         if noise_model is not None:
-            sim.parameters['device_properties'] = device_properties.to_dict(),
-        if noise_model is not None:
-            sim.parameters['gate_times'] = dict(gate_times)
+            sim.parameters['device_properties'] = device_properties.to_dict()
+            # sim.parameters['gate_times'] = dict(gate_times)
 
         return sim
 
-    future = client.submit(calculation)
-    # noinspection PyTypeChecker
-    client.publish_dataset(future, name=id)
-    return id
+    if use_dask:
+        future = client.submit(calculation)
+        # noinspection PyTypeChecker
+        client.publish_dataset(future, name=id)
+        sim = None
+    else:
+        sim = calculation()
+
+    return id if use_dask else sim
 
 
 def create_hadamard_experiment_and_then_simulation(instead_ibmqx4_use_ibmqx2=False, instead_general_weights_use_hadamard=False, use_barriers=False, no_noise=False):
@@ -309,7 +313,7 @@ def create_regular_experiment_and_then_simulation(backend_enum=BackendEnum.IBMQX
         else:
             device_properties = backend().properties()  # type: Optional[BackendProperties]
             gate_times = get_gate_times(backend())
-            noise_model = basic_device_noise_model(device_properties, gate_times=gate_times, temperature=0)  # type: Optional[NoiseModel]
+            noise_model = basic_device_noise_model(device_properties, gate_lengths=gate_times, temperature=0)  # type: Optional[NoiseModel]
 
         sim = simulation(id, qasm_simulator(), qobj=qobj, noise_model=noise_model)
         sim.parameters['backend'] = backend().name()
@@ -323,6 +327,8 @@ def create_regular_experiment_and_then_simulation(backend_enum=BackendEnum.IBMQX
             sim.parameters['gate_times'] = gate_times
 
         sim.set_theta(theta)
+        if no_experiment:
+            ex = sim
 
         return ex, sim
 
