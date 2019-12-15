@@ -390,6 +390,93 @@ def create_swap_test_circuit_ourense(index_state, theta, **kwargs):
     return qc
 
 
+def create_hadamard_circuit_ourense(index_state, theta, **kwargs):
+    # type: (List[float], float, Optional[dict]) -> QuantumCircuit
+    """
+
+    :param index_state:
+    :param theta:
+    :param kwargs: use_barriers (bool) and readout_swap (Dict[int, int])
+    :return:
+    """
+    use_barriers = kwargs.get('use_barriers', False)
+    readout_swap = kwargs.get('readout_swap', None)
+
+    q = qiskit.QuantumRegister(4, "q")
+    c = qiskit.ClassicalRegister(2, "c")
+    qc = qiskit.QuantumCircuit(q, c, name="hadmard-classifier")
+
+    q_m = q[2]
+    q_a = q[0]
+    q_d = q[1]
+    q_l = q[3]
+
+    # Index on q_0
+    alpha_y, _ = compute_rotation(index_state)
+    if alpha_y is None:
+        h(qc, q_m)
+    else:
+        rx(qc, -alpha_y, q_m).inverse()
+    if use_barriers: barrier(qc)
+
+    # Ancilla Superposition
+    h(qc, q_a)
+    if use_barriers: barrier(qc)
+
+    # Test Data
+    cu3(qc, theta - 0.0 * math.pi, -math.pi / 2, math.pi / 2, q_a, q_d)
+    if use_barriers: barrier(qc)
+
+    # Training Data
+    ## Conditionally excite x_1 on data q_2 (center!)
+    x(qc, q_a)
+    if use_barriers: barrier(qc)
+    ch(qc, q_a, q_d)
+    if use_barriers: barrier(qc)
+    crz(qc, math.pi + 0.0 * math.pi, q_a, q_d).inverse()
+    if use_barriers: barrier(qc)
+    cu1(qc, math.pi / 2 - 0.0 * math.pi, q_a, q_d)
+    if use_barriers: barrier(qc)
+    ## 2-Controlled Z-Gate
+    h(qc, q_d)
+    if use_barriers: barrier(qc)
+    ### Logical Swap on q_m & q_d
+    # qc.append(Ourense_ToffoliGate(), [q_a, q_m, q_d], [])
+    ccx(qc, q_a, q_m, q_d)
+    if use_barriers: barrier(qc)
+    # h(qc, q_m) # q_d -> q_m swapped
+    h(qc, q_d) # q_d -> q_m swapped
+    if use_barriers: barrier(qc)
+
+    # Label y_1
+    # cx(qc, q_d, q_l) # q_m -> q_d swapped
+    cx(qc, q_m, q_l) # q_m -> q_d swapped
+    if use_barriers: barrier(qc)
+
+    # Hadamard on ancilla
+    h(qc, q_a)
+    if use_barriers: barrier(qc)
+
+    # Measure on ancilla and label
+    if readout_swap is not None:
+        barrier(qc)
+        for i in range(q.size):
+            j = readout_swap.get(i, i)
+            if i != j:
+                swap(qc, q[i], q[j])
+    else:
+        readout_swap = {}
+
+    barrier(qc)
+    readout_swap_qb = dict(map(lambda k, v: (q[k], q[v]), readout_swap))  # type: Dict[QuantumRegister, QuantumRegister]
+    m1 = readout_swap_qb.get(q_a, q_a)
+    m2 = readout_swap_qb.get(q_l, q_l)
+    qiskit.circuit.measure.measure(qc, m1, c[0])
+    qiskit.circuit.measure.measure(qc, m2, c[1])
+
+    return qc
+
+
 def create_product_state_n_copies_circuit(index_state, theta, copies=1, use_barriers=False):
     a = qiskit.QuantumRegister(1, "a")
     index = qiskit.QuantumRegister(1, "m")
