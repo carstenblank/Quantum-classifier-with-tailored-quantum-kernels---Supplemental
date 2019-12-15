@@ -202,9 +202,14 @@ def create_swap_test_circuit(index_state, theta, **kwargs):
     return qc
 
 
-
 class Ourense_ToffoliGate(Gate):
-    """Toffoli gate. The qubits 1,2 (b,c) are swapped."""
+    """
+    Toffoli gate for ourense: a-c-b: q_0 <- a, q_1 <- c, q_2 <- b.
+
+    a,c and b,c must be connected form the beginning.
+
+    The qubits b,c are swapped at the end.
+    """
 
     def __init__(self):
         """Create new Toffoli gate."""
@@ -233,27 +238,29 @@ class Ourense_ToffoliGate(Gate):
             cx p(a),p(b);
         }
         """
-        pi = {0: 0, 1: 2, 2: 1}
         definition = []
         q = QuantumRegister(3, "q")
+        a, b, c = q[0], q[1], q[2]
+        pi = {a: a, b: c, c: b}
         rule = [
-            (HGate(), [q[2]], []),
-            (CnotGate(), [q[1], q[2]], []),
-            (TdgGate(), [q[2]], []),
-            (CnotGate(), [q[0], q[2]], []),
-            (TGate(), [q[2]], []),
-            (CnotGate(), [q[1], q[2]], []),
-            (TdgGate(), [q[2]], []),
-            (CnotGate(), [q[0], q[2]], []),
-            (TGate(), [q[1]], []),
-            (TGate(), [q[2]], []),
-            (HGate(), [q[2]], []),
-            # Swap here
-            (SwapGate(), [q[1], q[2]], []),
-            (CnotGate(), [q[pi[0]], q[pi[1]]], []),
-            (TGate(), [q[pi[0]]], []),
-            (TdgGate(), [q[pi[1]]], []),
-            (CnotGate(), [q[pi[0]], q[pi[1]]], [])
+            (HGate(), [c], []),
+            (CnotGate(), [b, c], []),
+            (TdgGate(), [c], []),
+            (CnotGate(), [a, c], []),
+            (TGate(), [c], []),
+            (CnotGate(), [b, c], []),
+            (TdgGate(), [c], []),
+            (CnotGate(), [a, c], []),
+            (TGate(), [b], []),
+            (TGate(), [c], []),
+            (HGate(), [c], []),
+            # Swap here: b / c
+            (SwapGate(), [b, c], []),
+            # Swapped!
+            (CnotGate(), [pi[a], pi[b]], []),
+            (TGate(), [pi[a]], []),
+            (TdgGate(), [pi[b]], []),
+            (CnotGate(), [pi[a], pi[b]], [])
         ]
         for inst in rule:
             definition.append(inst)
