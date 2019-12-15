@@ -17,6 +17,7 @@
 import datetime
 import logging
 import os
+import time
 from typing import Union, Dict, Optional, List, Callable, Tuple, Any
 
 import IBMQuantumExperience
@@ -25,7 +26,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import qiskit
 import qiskit.compiler
-import time
 from distributed import get_client, Client
 from qiskit import QuantumCircuit
 from qiskit.providers import BaseBackend, JobStatus, BaseJob, JobError
@@ -51,9 +51,6 @@ if active_account is None:
     raise ValueError("No active accounts there!")
 token = active_account["token"]
 url = active_account["url"]
-
-ibm_api = IBMQuantumExperience.IBMQuantumExperience(token=token)
-LOG.info("Loaded all API clients: IBMQuantumExperience v%s.", ibm_api.api_version())
 
 
 # Devices
