@@ -20,7 +20,6 @@ import os
 import time
 from typing import Union, Dict, Optional, List, Callable, Tuple, Any
 
-import IBMQuantumExperience
 import dateutil
 import matplotlib.pyplot as plt
 import numpy as np
