@@ -353,19 +353,20 @@ def create_swap_test_circuit_ourense(index_state, theta, **kwargs):
     cx(qc, qb_m, qb_l)
     if use_barriers: barrier(qc)
 
-    # Ancilla Superposition
-    h(qc, qb_a)
-    if use_barriers: barrier(qc)
-
     # Unknown data
     rx(qc, theta, qb_in)
+    if use_barriers: barrier(qc)
+
+    # Swap-Test itself
+    # Hadamard on ancilla
+    h(qc, qb_a)
     if use_barriers: barrier(qc)
 
     # c-SWAP!!!
     qc.append(Ourense_Fredkin(), [qb_a, qb_in, qb_d], [])
     if use_barriers: barrier(qc)
 
-    # Hadamard on ancilla q_4
+    # Hadamard on ancilla
     h(qc, qb_a)
     if use_barriers: barrier(qc)
 
@@ -407,10 +408,6 @@ def create_product_state_n_copies_circuit(index_state, theta, copies=1, use_barr
         ry(qc, -alpha_y, index).inverse()
     if use_barriers: barrier(qc)
 
-    # Ancilla Superposition
-    h(qc, a)
-    if use_barriers: barrier(qc)
-
     # Unknown data
     for copy in range(copies):
         rx(qc, theta, inp[copy])
@@ -431,7 +428,13 @@ def create_product_state_n_copies_circuit(index_state, theta, copies=1, use_barr
     cx(qc, index, label)
     if use_barriers: barrier(qc)
 
+    barrier(qc)
+    # Ancilla Superposition
+    h(qc, a)
+    if use_barriers: barrier(qc)
+
     # c-SWAP!!!
+
     for copy in range(copies):
         cswap(qc, a[0], d[copy], inp[copy])
         if use_barriers: barrier(qc)
