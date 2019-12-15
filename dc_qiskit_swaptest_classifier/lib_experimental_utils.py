@@ -39,6 +39,7 @@ from qiskit.result import Result
 from qiskit.result.models import ExperimentResult
 from qiskit.transpiler import PassManager, CouplingMap
 from qiskit.transpiler.passes import CXDirection, Unroller, Optimize1qGates
+from scipy.optimize import minimize
 
 LOG = logging.getLogger(__name__)
 
@@ -196,6 +197,14 @@ class FinishedExperiment:
             'external_id': self.external_id
         }
 
+    def analyze(self):
+        # type: () -> AnalyzeResult
+        if 'weights' in self.parameters:
+            weights = self.parameters['weights']
+        else:
+            weights = [0.5, 0.5]
+        return analyze_solution(self, weights[0], weights[1])
+
     @staticmethod
     def from_running_experiment(running_experiment):
         # type: (RunningExperiment) -> FinishedExperiment
@@ -302,6 +311,27 @@ class FinishedExperiment:
     def set_theta(self, theta):
         # type: (List[float]) -> None
         self.theta = theta
+
+
+class AnalyzeResult(object):
+
+    def __init__(self, amplitude_factor, phase_shift, approximate_w_1, accuracy):
+        # type: (float, float, float, float) -> None
+        self.accuracy = accuracy
+        self.approximate_w_1 = approximate_w_1
+        self.phase_shift = phase_shift
+        self.amplitude_factor = amplitude_factor
+
+    def __str__(self):
+        from sympy import nsimplify
+        return "amplitude dampening: {:.4}, shift: {} pi, approx. w_1: {:.4}, accuracy: {:.4}".format(
+            self.amplitude_factor,
+            nsimplify(self.phase_shift / np.pi, tolerance=0.1),
+            self.approximate_w_1,
+        self.accuracy)
+
+    def __repr__(self):
+        return str(self)
 
 
 ibmqx2_120_gf_time = {
@@ -877,3 +907,61 @@ def simulation(external_id, simulation_backend, qobj, noise_model=None):
 
     LOG.info("Simulation job {} is done.".format(job_id))
     return FinishedExperiment.from_running_experiment(sim)
+
+
+def theory_expectation(w_1, w_2):
+    def inner(x):
+        return w_1 * np.sin(x/2 + np.pi/4)**2 - w_2 * np.cos(x/2 + np.pi/4)**2
+    return inner
+
+
+def plot2(experiment, simulation, w_1, w_2, plot_factor_theory=1.0):
+    # type: (FinishedExperiment, FinishedExperiment, float, float, float) -> plt
+
+    experiment.show_plot(compare_classification=simulation.get_classification(),
+                         classification_label='exp.',
+                         compare_classification_label='sim.')
+    finer_theta = np.arange(0, 2 * np.pi, 1e-3)
+    t_cl = [theory_expectation(w_1, w_2)(t) for t in finer_theta]
+    plt.plot([xx for xx, p in zip(finer_theta, t_cl) if p > 1e-6],
+             [plot_factor_theory * p for p in t_cl if p > 1e-6],
+             c="black",
+             label=('${} \\cdot$'.format(plot_factor_theory) if plot_factor_theory < 1.0 else '') + 'theory $\\tilde{y} = 0$',
+             linestyle='-')
+    plt.plot([xx for xx, p in zip(finer_theta, t_cl) if p < -1e-6],
+             [plot_factor_theory * p for p in t_cl if p < -1e-6],
+             c="black",
+             label=('${} \\cdot$'.format(plot_factor_theory) if plot_factor_theory < 1.0 else '') + 'theory $\\tilde{y} = 1$',
+             linestyle=':')
+    plt.legend(fontsize=18, ncol=3, columnspacing=1, mode='expend', bbox_to_anchor=(1.0, 1.21), frameon=False)
+    plt.ylim((-(plot_factor_theory + 0.1) / 2, (plot_factor_theory + 0.1) / 2))
+    return plt
+
+
+def analyze_solution(finished_experiment, w_1, w_2):
+    # type: (FinishedExperiment, float, float) -> AnalyzeResult
+
+    def mse(classification, theta):
+        classification = np.asarray(classification)
+
+        def inner(x):
+            a, vartheta, w_1 = x
+            reference = np.asarray([
+                a * theory_expectation(w_1=w_1, w_2=1 - w_1)(t - vartheta) for t in theta
+            ])
+            return np.sqrt(sum(np.power(classification - reference, 2)))
+
+        return inner
+
+    fun = mse(finished_experiment.get_classification(), finished_experiment.theta)
+    x_0 = np.asarray([1.0, 0, 0])
+    result = minimize(fun, x_0)
+
+    [a, vartheta, approx_w_1] = result.x
+
+    theory_classification = [theory_expectation(w_1, w_2)(t) for t in finished_experiment.theta]
+    accuracy = sum([1 if np.sign(ce * ct) > 0 else 0
+                    for ce, ct in zip(finished_experiment.get_classification(), theory_classification)])
+    accuracy = accuracy / len(finished_experiment.theta)
+
+    return AnalyzeResult(a, vartheta, approx_w_1, accuracy)
